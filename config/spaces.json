@@ -1,0 +1,56 @@
+{
+  "spaces": [
+    {
+      "name": "@ЕПІКА 1",
+      "clickup_space_id": "SPACE_ID_EPIKA",
+      "owner": "DEVTECH Lead",
+      "responsibilities": [
+        "PostgreSQL migration_state schema",
+        "Cloudflare Worker edge-verify deployment",
+        "ZK-proof generation infrastructure",
+        "Microservices orchestration"
+      ],
+      "current_blockers": [
+        "PostgreSQL migration_state rollout incomplete",
+        "Cloudflare Worker edge-verify not deployed"
+      ]
+    },
+    {
+      "name": "@BUSineSS",
+      "clickup_space_id": "SPACE_ID_BUSINESS",
+      "owner": "Bizdev Lead",
+      "responsibilities": [
+        "Diia eID integration for LLC AuditorSEC",
+        "Monobank API terms & webhook setup",
+        "FOP/TOV legal compliance",
+        "Financial reporting requirements"
+      ],
+      "current_blockers": [
+        "Diia eID verification for LLC AuditorSEC pending"
+      ]
+    },
+    {
+      "name": "@DEVTECH",
+      "clickup_space_id": "SPACE_ID_DEVTECH",
+      "owner": "DevSecOps Lead",
+      "responsibilities": [
+        "GitHub webhooks configuration",
+        "Make.com scenario setup",
+        "CI/CD pipelines",
+        "Secrets management (GitHub Secrets/Vault)"
+      ],
+      "current_blockers": [
+        "GitHub webhook → Make.com endpoint missing",
+        "ZK_PROVING_KEY secret not configured"
+      ]
+    }
+  ],
+  "sla_targets": {
+    "zk_proof_p95_ms": 500,
+    "make_latency_p95_s": 300,
+    "sync_rate_min_percent": 95,
+    "slack_delivery_rate_percent": 100,
+    "diia_uptime_percent": 99.5,
+    "monobank_delivery_percent": 99.9
+  }
+}
