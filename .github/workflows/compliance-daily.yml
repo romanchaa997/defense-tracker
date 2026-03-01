@@ -1,0 +1,168 @@
+name: Daily Compliance Report
+
+on:
+  schedule:
+    # Щодня о 06:00 UTC (09:00 EET)
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no Slack posting)'
+        required: false
+        default: 'false'
+
+jobs:
+  compliance-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run compliance checks
+        id: compliance
+        env:
+          # ClickUp
+          CLICKUP_API_TOKEN: ${{ secrets.CLICKUP_API_TOKEN }}
+          CLICKUP_AUDIT_LIST_ID: ${{ secrets.CLICKUP_AUDIT_LIST_ID }}
+          CLICKUP_TEAM_ID: ${{ secrets.CLICKUP_TEAM_ID }}
+          # JIRA
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          # GitHub
+          GH_COMPLIANCE_TOKEN: ${{ secrets.GH_COMPLIANCE_TOKEN }}
+          # Make.com
+          MAKE_API_TOKEN: ${{ secrets.MAKE_API_TOKEN }}
+          MAKE_TEAM_ID: ${{ secrets.MAKE_TEAM_ID }}
+          # ZK-Proofs
+          ZK_PROVING_KEY: ${{ secrets.ZK_PROVING_KEY }}
+          ZK_VERIFIER_CONTRACT: ${{ secrets.ZK_VERIFIER_CONTRACT }}
+          # Diia
+          DIIA_CLIENT_ID: ${{ secrets.DIIA_CLIENT_ID }}
+          DIIA_CLIENT_SECRET: ${{ secrets.DIIA_CLIENT_SECRET }}
+          # Monobank
+          MONOBANK_TOKEN: ${{ secrets.MONOBANK_TOKEN }}
+        run: |
+          echo "🔍 Running compliance checks..."
+          node src/compliance/checker.js > /tmp/compliance-report.json
+          
+          # Виведення для debugging
+          cat /tmp/compliance-report.json
+      
+      - name: Generate Slack report
+        id: slack_report
+        run: |
+          echo "📊 Generating Slack report..."
+          node src/compliance/report-generator.js /tmp/compliance-report.json > /tmp/slack-message.json
+          
+          # Set output for next step
+          echo "report_path=/tmp/slack-message.json" >> $GITHUB_OUTPUT
+      
+      - name: Post to Slack
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_COMPLIANCE_CHANNEL_ID: ${{ secrets.SLACK_COMPLIANCE_CHANNEL_ID }}
+        run: |
+          echo "📤 Posting to Slack #compliance-daily..."
+          
+          # Send report via Slack API
+          curl -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            -d @/tmp/slack-message.json
+      
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compliance-report-${{ github.run_id }}
+          path: |
+            /tmp/compliance-report.json
+            /tmp/slack-message.json
+          retention-days: 30
+      
+      - name: Check SLA violations
+        run: |
+          echo "⚠️ Checking for SLA violations..."
+          
+          # Parse JSON та перевірка на violations
+          violations=$(node -e "const data = require('/tmp/compliance-report.json'); console.log(data.sla_violations || 0);")
+          
+          if [ "$violations" -gt 0 ]; then
+            echo "❌ Found $violations SLA violation(s)"
+            exit 1
+          else
+            echo "✅ All SLA targets met"
+          fi
+      
+      - name: Create GitHub Issue on failures
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('/tmp/compliance-report.json', 'utf8'));
+            
+            const title = `⚠️ Compliance Report Failed — ${new Date().toISOString().split('T')[0]}`;
+            const body = `
+            ## Compliance Check Failed
+            
+            **Date:** ${new Date().toUTCString()}
+            **Workflow Run:** [#${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+            
+            ### Summary
+            
+            \`\`\`json
+            ${JSON.stringify(report, null, 2)}
+            \`\`\`
+            
+            ### Actions Required
+            
+            - [ ] Review failed compliance checks
+            - [ ] Investigate blockers in @ЕПІКА 1, @BUSineSS, @DEVTECH
+            - [ ] Fix SLA violations
+            - [ ] Re-run workflow after fixes
+            
+            /cc @romanchaa997
+            `;
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['compliance', 'critical', 'automation']
+            });
+
+  # Backup job: Store compliance data
+  backup:
+    runs-on: ubuntu-latest
+    needs: compliance-report
+    if: always()
+    
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: compliance-report-${{ github.run_id }}
+      
+      - name: Archive to repository
+        run: |
+          mkdir -p compliance-history
+          DATE=$(date +%Y-%m-%d)
+          cp compliance-report.json "compliance-history/report-$DATE.json"
+          
+          echo "✅ Backup created: compliance-history/report-$DATE.json"
