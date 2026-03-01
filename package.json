@@ -1,0 +1,37 @@
+{
+  "name": "defense-tracker",
+  "version": "0.1.0",
+  "description": "UHIP 2A / Bobslaigh / AuditorSEC - Daily compliance monitoring with ZK-proofs, multi-system sync, and Diia/Monobank integration",
+  "main": "src/compliance/checker.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "compliance": "node src/compliance/checker.js",
+    "report": "node src/compliance/report-generator.js",
+    "daily": "npm run compliance && npm run report"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/romanchaa997/defense-tracker.git"
+  },
+  "keywords": [
+    "compliance",
+    "audit",
+    "zk-proofs",
+    "clickup",
+    "jira",
+    "github",
+    "slack",
+    "diia",
+    "monobank",
+    "make.com",
+    "uhip",
+    "bobslaigh"
+  ],
+  "author": "romanchaa997",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
